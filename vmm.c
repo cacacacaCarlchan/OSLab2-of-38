@@ -113,7 +113,7 @@ insert_vma_struct(struct mm_struct *mm, struct vma_struct *vma) {
     list_entry_t *list = &(mm->mmap_list);
     list_entry_t *le_prev = list, *le_next;
 
-        list_entry_t *le = list;
+        list_entry_t *le = list;//le是虚拟内存空间的开头的list entry
         while ((le = list_next(le)) != list) {//当没有回到环状链表的头，即遍历一圈的时候
             struct vma_struct *mmap_prev = le2vma(le, list_link);//le目前对应的虚拟内存空间
             if (mmap_prev->vm_start > vma->vm_start) {//如果le对应的的虚拟内存起始大于要插入的目标vma的起始地址，跳出
@@ -301,7 +301,7 @@ volatile unsigned int pgfault_num=0;
  *-U / S标志（位2）指示处理器是否在用户模式（1）下执行
  *或例外时的超级用户模式（0）。
  */
-//do_pgfault() 函数从 CR2 寄存器中获取页错误异常的虚拟地址，根据 error code 来查找这个虚拟地址是否在某一个 VMA 的地址范围内，那么就给它分配一个物理页。
+//do_pgfault() 函数从 CR2 寄存器中获取页错误异常的虚拟地址，根据 error code 来查找这个虚拟地址是否在某一个 VMA 的地址范围内，如果在那么就给它分配一个物理页。
 int
 do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     int ret = -E_INVAL;
@@ -340,9 +340,9 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
      * THEN
      *    continue process
      */
-    uint32_t perm = PTE_U;
+    uint32_t perm = PTE_U;//perm为vma的权限
     if (vma->vm_flags & VM_WRITE) {
-        perm |= PTE_W;
+        perm |= PTE_W;//保持原本的可写性
     }
     addr = ROUNDDOWN(addr, PGSIZE);//addr向下按页对齐
 
@@ -404,15 +404,15 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     //首先检查页表中是否有相应的表项，如果表项为空，那么说明没有映射过；
    // 然后使用 pgdir_alloc_page 获取一个物理页，同时进行错误检查即可。
 
-    if ((ptep = get_pte(mm->pgdir, addr, 1)) == NULL) {// 根据引发缺页异常的地址，去找到该地址所对应的 PTE，如果找不到，则创建一页表
+    if ((ptep = get_pte(mm->pgdir, addr, 1)) == NULL) {// 根据引发缺页异常的地址，去找到该线性地址所对应的 PTE create=1表示pt不存在则允许创建
         cprintf("get_pte in do_pgfault failed\n");
         goto failed;
     }
-    
+
     if (*ptep == 0) { // PTE 所指向的物理页表地址若不存在，则分配一物理页并将逻辑地址和物理地址作映射 (就是让 PTE 指向 物理页帧)
         if (pgdir_alloc_page(mm->pgdir, addr, perm) == NULL) {
             cprintf("pgdir_alloc_page in do_pgfault failed\n");
-            goto failed;
+            goto failed;//申请失败：内存不足 退出
         }
     }// 如果 PTE 存在 说明此时 P 位为 0 该页被换出到外存中 需要将其换入内存
 /* 设计思路：
